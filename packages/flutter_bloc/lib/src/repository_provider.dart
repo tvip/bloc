@@ -1,4 +1,5 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter_web/widgets.dart';
+import 'package:meta/meta.dart';
 import 'package:provider/provider.dart';
 
 class RepositoryProvider<T> extends Provider<T> {
