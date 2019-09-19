@@ -9,20 +9,20 @@ import 'package:rxdart/rxdart.dart';
 abstract class Bloc<Event, State> {
   final PublishSubject<Event> _eventSubject = PublishSubject<Event>();
 
-  BehaviorSubject<State> _stateSubject;
+  BehaviorSubject<_StateContainer<State>> _stateSubject;
 
   /// Returns [Stream] of [State]s.
   /// Usually consumed by the presentation layer.
-  Stream<State> get state => _stateSubject.stream;
+  Stream<State> get state => _stateSubject.stream.map((s) => s.state);
 
   /// Returns the [State] before any [Event]s have been `dispatched`.
   State get initialState;
 
   /// Returns the current [State] of the [Bloc].
-  State get currentState => _stateSubject.value;
+  State get currentState => _stateSubject.value.state;
 
   Bloc() {
-    _stateSubject = BehaviorSubject<State>.seeded(initialState);
+    _stateSubject = BehaviorSubject<_StateContainer<State>>.seeded(_StateContainer(initialState));
     _bindStateSubject();
   }
 
@@ -136,7 +136,9 @@ abstract class Bloc<Event, State> {
       return mapEventToState(currentEvent).handleError(_handleError);
     })).forEach(
       (State nextState) {
-        if (currentState == nextState || _stateSubject.isClosed) return;
+        final currentStateContainer = _stateSubject.value;
+        final nextStateContainer = _StateContainer(nextState);
+        if (currentStateContainer == nextStateContainer || _stateSubject.isClosed) return;
         final transition = Transition(
           currentState: currentState,
           event: currentEvent,
@@ -144,7 +146,7 @@ abstract class Bloc<Event, State> {
         );
         BlocSupervisor.delegate.onTransition(this, transition);
         onTransition(transition);
-        _stateSubject.add(nextState);
+        _stateSubject.add(nextStateContainer);
       },
     );
   }
@@ -153,4 +155,24 @@ abstract class Bloc<Event, State> {
     BlocSupervisor.delegate.onError(this, error, stacktrace);
     onError(error, stacktrace);
   }
+}
+
+class _StateContainer<State> {
+  final State state;
+  final int _stateHashCode;
+
+  _StateContainer(this.state) : _stateHashCode = state.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is _StateContainer &&
+              runtimeType == other.runtimeType &&
+              state == other.state &&
+              _stateHashCode == other._stateHashCode;
+
+  @override
+  int get hashCode =>
+      state.hashCode ^
+      _stateHashCode.hashCode;
 }
